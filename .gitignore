@@ -1,6 +1,6 @@
 .vscode
 data/*
 hypotheses/*
-
+temp*
 !README.md
 !readme.md

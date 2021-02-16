@@ -1,2 +1,2 @@
-# Template repo
+# Knowledge Tracing Models
 
