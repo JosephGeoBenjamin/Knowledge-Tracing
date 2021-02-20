@@ -63,7 +63,7 @@ class AssistDataset(Dataset):
     def __getitem__(self, idx):
         inp1 = self.records[idx*3]
         inp2 = self.records[(idx*3) +1]
-        inp_sz = sum(inp1 > -1)
+        inp_sz = sum(inp1 > 0)
         out = self.records[(idx*3) +2]
 
         return inp1, inp2, inp_sz, out
@@ -100,7 +100,7 @@ class AssistDataset(Dataset):
                 if a:
                     final.extend([a,b,c])
 
-        arr = np.ones((len(final),500), dtype=np.int) * -1
+        arr = np.zeros((len(final),500), dtype=np.int)
 
         for i, lst in enumerate(final):
            arr[i][:len(lst)] = lst
