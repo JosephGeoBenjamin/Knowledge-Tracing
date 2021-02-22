@@ -55,7 +55,7 @@ class DKT_Embednet(nn.Module):
 
         ## pad the sequence to the max length in the batch
         # output: max_length, batch_size, hidden*directions
-        rout, _ = nn.utils.rnn.pad_packed_sequence(rout, total_length=500)
+        rout, _ = nn.utils.rnn.pad_packed_sequence(rout, total_length=1000)
 
         # output: batch_size, max_length, hidden_dim
         rout = rout.permute(1,0,2)

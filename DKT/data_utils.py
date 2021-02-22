@@ -95,12 +95,15 @@ class AssistDataset(Dataset):
         '''
         final = []
         for stud in self.json_data.keys():
+            # All sessions will be in single sequence
+            a = []; b = []; c = []
             for se in self.json_data[stud]['sessions']:
-                a,b,c = self._expand_interaction(se, stud)
-                if a:
-                    final.extend([a,b,c])
+                a_,b_,c_ = self._expand_interaction(se, stud)
+                a.extend(a_); b.extend(b_); c.extend(c_)
+            if a:
+                final.extend([a,b,c])
 
-        arr = np.ones((len(final),500), dtype=np.int) *-1
+        arr = np.ones((len(final),1000), dtype=np.int) *-1
 
         for i, lst in enumerate(final):
            arr[i][:len(lst)] = lst
