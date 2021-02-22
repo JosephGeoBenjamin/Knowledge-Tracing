@@ -2,9 +2,12 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 import os
-import sys
 from tqdm import tqdm
-from algorithms.deep_kt import DeepKnowledgeTracing
+from DKT.data_utils import AssistDataset
+from DKT.dkt_arch import DKT_Embednet
+from DKT.metric_utils import AccuracyTeller
+import utilities.running_utils as rutl
+
 
 torch.manual_seed(0)
 torch.backends.cudnn.deterministic = True
@@ -22,31 +25,32 @@ if not os.path.exists(LOG_PATH+"weights"): os.makedirs(LOG_PATH+"weights")
 ##===== Running Configuration =================================================
 
 num_epochs = 200
-batch_size = 32
+batch_size = 256
 acc_grad = 1
-learning_rate = 0.1
+learning_rate = 0.01
 
-# train_file = merge_xlit_jsons(["data/hindi/HiEn_train1.json",
-#                                 "data/hindi/HiEn_train2.json" ],
-#                                 save_prefix= LOG_PATH)
 
-train_dataset = XlitData( src_glyph_obj = src_glyph, tgt_glyph_obj = tgt_glyph,
-                        json_file='data/hindi/HiEn_xlit_train.json', file_map = "LangEn",
-                        padding=True)
+train_dataset = AssistDataset(  json_path='data/assist_splits/assist_train.json',
+                                skill_file='data/assist_splits/skill_train.txt',
+                                student_file='data/assist_splits/student_train.txt',
+                                )
+
+train_sampler, valid_sampler = rutl.random_train_valid_samplers(train_dataset)
+
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
-                                shuffle=True, num_workers=0)
+                                sampler=train_sampler,
+                                num_workers=0)
+valid_dataloader = DataLoader(train_dataset, batch_size=batch_size,
+                                sampler=valid_sampler,
+                                num_workers=0)
 
-val_dataset = XlitData( src_glyph_obj = src_glyph, tgt_glyph_obj = tgt_glyph,
-                        json_file='data/hindi/HiEn_xlit_valid.json', file_map = "LangEn",
-                        padding=True)
-
-
-val_dataloader = DataLoader(val_dataset, batch_size=batch_size,
-                                shuffle=True, num_workers=0)
-
-# for i in range(len(train_dataset)):
+# for i in range(20):
 #     print(train_dataset.__getitem__(i))
+
+# for i, batch in enumerate(train_dataloader):
+#         print(i, batch)
+#         break
 
 ##===== Model Configuration =================================================
 
@@ -54,36 +58,37 @@ rnn_type = "lstm"
 enc_layers = 1
 m_dropout = 0
 
-model = Encoder(  input_dim= input_dim, embed_dim = enc_emb_dim,
-                hidden_dim= enc_hidden_dim,
-                rnn_type = rnn_type, layers= enc_layers,
-                dropout= m_dropout, device = device,
-                bidirectional= enc_bidirect)
+model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
+                    stud_embed_dim = 16,
+                    skill_count = len(train_dataset.idxr.skill2idx),
+                    skill_embed_dim = 8,
+                    hidden_dim = 64, layers = 1,
+                    dropout = 0, device = "cpu")
 model = model.to(device)
 
 # model = load_pretrained(model,pretrain_wgt_path) #if path empty returns unmodified
 
-## ----- Load Embeds -----
-
 
 ##------ Model Details ---------------------------------------------------------
-rutl.count_train_param(model)
-print(model)
+
+rutl.print_model_arch(model)
 
 
 ##====== Optimizer Zone ===================================================================
 
 
-criterion = torch.nn.CrossEntropyLoss()
-    # weight = torch.from_numpy(train_dataset.tgt_class_weights).to(device)  )
-
+criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 def loss_estimator(pred, truth):
     """ Only consider non-zero inputs in the loss; mask needed
     pred: batch
     """
-    mask = truth.ge(1).type(torch.FloatTensor).to(device)
-    loss_ = criterion(pred, truth) * mask
+    truth = truth.type(torch.FloatTensor)
+    mask = truth.ge(0).type(torch.bool).to(device)
+    loss_ = criterion(pred, truth)[mask]
+
     return torch.mean(loss_)
+
+accuracy_estimator = AccuracyTeller()
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate,
                              weight_decay=0)
@@ -102,17 +107,14 @@ if __name__ =="__main__":
         model.train()
         acc_loss = 0
         running_loss = []
-        if epoch >= teach_force_till: teacher_forcing = 0
-        else: teacher_forcing = max(0, teacher_forcing - teach_decay_pereph)
+        for ith, (src1, src2, src_sz, tgt) in enumerate(train_dataloader):
 
-        for ith, (src, tgt, src_sz) in enumerate(train_dataloader):
-
-            src = src.to(device)
+            src1 = src1.to(device)
+            src2 = src2.to(device)
             tgt = tgt.to(device)
 
             #--- forward ------
-            output = model(src = src, tgt = tgt, src_sz =src_sz,
-                            teacher_forcing_ratio = teacher_forcing)
+            output = model(x1 = src1, x2=src2, x_sz =src_sz)
             loss = loss_estimator(output, tgt) / acc_grad
             acc_loss += loss
 
@@ -122,43 +124,48 @@ if __name__ =="__main__":
                 optimizer.step()
                 optimizer.zero_grad()
 
-                print('epoch[{}/{}], MiniBatch-{} loss:{:.4f}'
+                print('epoch[{}/{}], MiniBatch:{} loss:{:.4f}'
                     .format(epoch+1, num_epochs, (ith+1)//acc_grad, acc_loss.data))
                 running_loss.append(acc_loss.item())
                 acc_loss=0
                 # break
 
-        LOG2CSV(running_loss, LOG_PATH+"trainLoss.csv")
+        rutl.LOG2CSV(running_loss, LOG_PATH+"trainLoss.csv")
 
         #--------- Validate ---------------------
         model.eval()
         val_loss = 0
-        val_accuracy = 0
-        for jth, (v_src, v_tgt, v_src_sz) in enumerate(tqdm(val_dataloader)):
-            v_src = v_src.to(device)
-            v_tgt = v_tgt.to(device)
+        val_auc = 0
+        pred_labels = []; true_labels = []
+        for jth, (vsrc1, vsrc2, vsrc_sz, vtgt) in enumerate(tqdm(valid_dataloader)):
+            vsrc1 = vsrc1.to(device)
+            vsrc2 = vsrc2.to(device)
+            vtgt = vtgt.to(device)
             with torch.no_grad():
-                v_output = model(src = v_src, tgt = v_tgt, src_sz = v_src_sz)
-                val_loss += loss_estimator(v_output, v_tgt)
+                voutput = model(x1 = vsrc1, x2= vsrc2, x_sz = vsrc_sz )
+                val_loss += loss_estimator(voutput, vtgt)
+                accuracy_estimator.register_result(vtgt, voutput)
+            # break
 
-                val_accuracy += rutl.accuracy_score(v_output, v_tgt, tgt_glyph)
-            #break
-        val_loss = val_loss / len(val_dataloader)
-        val_accuracy = val_accuracy / len(val_dataloader)
+        val_loss = val_loss / len(valid_dataloader)
 
-        print('epoch[{}/{}], [-----TEST------] loss:{:.4f}  Accur:{:.4f}'
-              .format(epoch+1, num_epochs, val_loss.data, val_accuracy.data))
-        LOG2CSV([val_loss.item(), val_accuracy.item()],
+        val_auc = accuracy_estimator.area_under_curve()
+        val_acc = accuracy_estimator.accuracy_score()
+
+        print('epoch[{}/{}], [-----TEST------] loss:{:.4f} AUC:{:.4f} Accur:{:.4f}'
+              .format(epoch+1, num_epochs, val_loss.data, val_auc, val_acc ))
+
+        rutl.LOG2CSV([val_loss.item(), val_auc, val_acc],
                     LOG_PATH+"valLoss.csv")
 
         #-------- save Checkpoint -------------------
-        if val_accuracy > best_accuracy:
+        if val_auc > best_accuracy:
         # if val_loss < best_loss:
-            print("***saving best optimal state [Loss:{} Accur:{}] ***".format(val_loss.data,val_accuracy.data) )
+            print("***saving best optimal state [Loss:{} Accur:{}] ***".format(val_loss.data,val_auc) )
             best_loss = val_loss
-            best_accuracy = val_accuracy
-            torch.save(model.state_dict(), WGT_PREFIX+"_model-{}.pth".format(epoch+1))
-            LOG2CSV([epoch+1, val_loss.item(), val_accuracy.item()],
+            best_accuracy = val_auc
+            torch.save(model.state_dict(), WGT_PREFIX+"_model.pth")
+            rutl.LOG2CSV([epoch+1, val_loss.item(), val_auc],
                     LOG_PATH+"bestCheckpoint.csv")
 
         # LR step

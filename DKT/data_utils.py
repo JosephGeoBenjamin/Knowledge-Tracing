@@ -69,7 +69,7 @@ class AssistDataset(Dataset):
         return inp1, inp2, inp_sz, out
 
     def __len__(self):
-        return len(self.records) // 2
+        return len(self.records) // 3
 
     def _expand_interaction(self, sess, stud):
         ita_list = sess['interactions']
@@ -100,7 +100,7 @@ class AssistDataset(Dataset):
                 if a:
                     final.extend([a,b,c])
 
-        arr = np.zeros((len(final),500), dtype=np.int)
+        arr = np.ones((len(final),500), dtype=np.int) *-1
 
         for i, lst in enumerate(final):
            arr[i][:len(lst)] = lst
