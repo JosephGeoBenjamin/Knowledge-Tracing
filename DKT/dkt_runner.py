@@ -4,7 +4,7 @@ import numpy as np
 import os
 from tqdm import tqdm
 from DKT.data_utils import AssistDataset
-from DKT.dkt_arch import DKT_Embednet
+from DKT.dkt_arch import DKT_Embednet, DKT_Onehotnet
 from DKT.metric_utils import AccuracyTeller
 import utilities.running_utils as rutl
 
@@ -25,7 +25,7 @@ if not os.path.exists(LOG_PATH+"weights"): os.makedirs(LOG_PATH+"weights")
 ##===== Running Configuration =================================================
 
 num_epochs = 200
-batch_size = 256
+batch_size = 4
 acc_grad = 1
 learning_rate = 0.01
 
@@ -58,12 +58,17 @@ rnn_type = "lstm"
 enc_layers = 1
 m_dropout = 0
 
-model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
-                    stud_embed_dim = 16,
+# model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
+#                     stud_embed_dim = 16,
+#                     skill_count = len(train_dataset.idxr.skill2idx),
+#                     skill_embed_dim = 8,
+#                     hidden_dim = 64, layers = 1,
+#                     dropout = 0, device = device)
+
+model = DKT_Onehotnet(stud_count = len(train_dataset.idxr.stud2idx),
                     skill_count = len(train_dataset.idxr.skill2idx),
-                    skill_embed_dim = 8,
                     hidden_dim = 64, layers = 1,
-                    dropout = 0, device = "cpu")
+                    dropout = 0, device = device)
 model = model.to(device)
 
 # model = load_pretrained(model,pretrain_wgt_path) #if path empty returns unmodified
@@ -82,7 +87,7 @@ def loss_estimator(pred, truth):
     """ Only consider non-zero inputs in the loss; mask needed
     pred: batch
     """
-    truth = truth.type(torch.FloatTensor)
+    truth = truth.type(torch.FloatTensor).to(device)
     mask = truth.ge(0).type(torch.bool).to(device)
     loss_ = criterion(pred, truth)[mask]
 
@@ -138,9 +143,11 @@ if __name__ =="__main__":
         val_auc = 0
         pred_labels = []; true_labels = []
         for jth, (vsrc1, vsrc2, vsrc_sz, vtgt) in enumerate(tqdm(valid_dataloader)):
+
             vsrc1 = vsrc1.to(device)
             vsrc2 = vsrc2.to(device)
             vtgt = vtgt.to(device)
+
             with torch.no_grad():
                 voutput = model(x1 = vsrc1, x2= vsrc2, x_sz = vsrc_sz )
                 val_loss += loss_estimator(voutput, vtgt)
@@ -148,7 +155,6 @@ if __name__ =="__main__":
             # break
 
         val_loss = val_loss / len(valid_dataloader)
-
         val_auc = accuracy_estimator.area_under_curve()
         val_acc = accuracy_estimator.accuracy_score()
 
