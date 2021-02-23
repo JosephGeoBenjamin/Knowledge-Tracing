@@ -20,9 +20,9 @@ class DKT_Embednet(nn.Module):
         self.skill_count, self.skill_embed_dim = skill_count, skill_embed_dim
         self.ques_count, self.ques_embed_dim = ques_count, ques_embed_dim
 
-        self.stud_embed = nn.Embedding(self.stud_count, self.stud_embed_dim, padding_idx = 0)
-        self.skill_embed = nn.Embedding(self.skill_count, self.skill_embed_dim, padding_idx = 0)
-        self.ques_embed = nn.Embedding(self.ques_count, self.ques_embed_dim, padding_idx = 0)
+        self.stud_embed = nn.Embedding(self.stud_count, self.stud_embed_dim, )
+        self.skill_embed = nn.Embedding(self.skill_count, self.skill_embed_dim, )
+        self.ques_embed = nn.Embedding(self.ques_count, self.ques_embed_dim, )
 
         inp_sz = self.stud_embed_dim+self.skill_embed_dim+self.ques_embed_dim
         self.enc_rnn = nn.LSTM(

@@ -70,6 +70,7 @@ class AssistDataset(Dataset):
                                 question_file=question_file, )
 
         self.records = self._create_records()
+        print(len(self.records)//4)
         if ( self.records.shape[0] % 4) != 0:
             print("\n !!!! Something went wrong with records, the lines are ODD  expected to be EVEN !!!!\n")
 
@@ -77,7 +78,7 @@ class AssistDataset(Dataset):
         inp1 = self.records[idx*4]
         inp2 = self.records[(idx*4) +1]
         inp3 = self.records[(idx*4) +2]
-        inp_sz = sum(inp1 > 0)
+        inp_sz = sum(inp1 >= 0)
         out = self.records[(idx*4) +3]
 
         return inp1, inp2, inp3, inp_sz, out
