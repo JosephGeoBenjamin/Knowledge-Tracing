@@ -79,6 +79,19 @@ model = model.to(device)
 # model = load_pretrained(model,pretrain_wgt_path) #if path empty returns unmodified
 
 
+def set_avg_embedding(model):
+    ''' Average will be set at 0th index; consistent with dataset
+    '''
+    e = model.stud_embed
+    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+    e = model.skill_embed
+    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+    e = model.ques_embed
+    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+
+    return model
+
+
 ##------ Model Details ---------------------------------------------------------
 
 rutl.print_model_arch(model)
@@ -108,6 +121,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate,
 #===============================================================================
 
 def validation_routine(vdataloader, model, set_name = ""):
+    model = set_avg_embedding(model)
     model.eval()
     accuracy_estimator.reset()
 
