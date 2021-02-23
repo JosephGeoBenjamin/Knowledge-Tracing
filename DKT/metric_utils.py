@@ -2,6 +2,8 @@ from sklearn import metrics
 import numpy as np
 
 class AccuracyTeller():
+    """ TODO: Unintentional OOPs inspiration, should be made Pure
+    """
     def __init__(self):
         self.true_labels = []
         self.pred_labels = []
@@ -13,6 +15,10 @@ class AccuracyTeller():
 
         self.true_labels.extend(true_)
         self.pred_labels.extend(pred_)
+
+    def reset(self):
+        self.true_labels = []
+        self.pred_labels = []
 
     def area_under_curve(self):
         fpr, tpr, thresholds = metrics.roc_curve(self.true_labels, self.pred_labels, pos_label=1)

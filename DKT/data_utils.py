@@ -63,6 +63,7 @@ class AssistDataset(Dataset):
 
     def __init__(self, json_path, skill_file, student_file, question_file):
         self.bpath = os.path.dirname(json_path)
+        self.bname = os.path.basename(json_path)
         self.json_data = json.load(open(json_path))
         self.idxr = Conversions(skill_file=skill_file,
                                 student_file=student_file,
@@ -123,7 +124,7 @@ class AssistDataset(Dataset):
 
         for i, lst in enumerate(final):
            arr[i][:len(lst)] = lst
-        path =  os.path.join(self.bpath, "temp_record_train_npy.txt")
+        path =  os.path.join(self.bpath, "temp_record_{}_npy.txt".format(self.bname))
         np.savetxt(path, arr, fmt='%i' )
 
         return arr

@@ -59,20 +59,20 @@ rnn_type = "lstm"
 enc_layers = 1
 m_dropout = 0
 
-# model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
-#                     stud_embed_dim = 16,
+model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
+                    stud_embed_dim = 8,
+                    skill_count = len(train_dataset.idxr.skill2idx),
+                    skill_embed_dim = 32,
+                    ques_count = len(train_dataset.idxr.ques2idx),
+                    ques_embed_dim = 32,
+                    hidden_dim = 128, layers = 1,
+                    dropout = 0, device = device)
+
+# model = DKT_Onehotnet(stud_count = len(train_dataset.idxr.stud2idx),
 #                     skill_count = len(train_dataset.idxr.skill2idx),
-#                     skill_embed_dim = 8,
 #                     ques_count = len(train_dataset.idxr.ques2idx),
-#                     ques_embed_dim = 16,
 #                     hidden_dim = 64, layers = 1,
 #                     dropout = 0, device = device)
-
-model = DKT_Onehotnet(stud_count = len(train_dataset.idxr.stud2idx),
-                    skill_count = len(train_dataset.idxr.skill2idx),
-                    ques_count = len(train_dataset.idxr.ques2idx),
-                    hidden_dim = 64, layers = 1,
-                    dropout = 0, device = device)
 
 model = model.to(device)
 
@@ -98,7 +98,7 @@ def loss_estimator(pred, truth):
 
     return torch.mean(loss_)
 
-accuracy_estimator = AccuracyTeller()
+accuracy_estimator = AccuracyTeller() # must be reset for each epoch
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate,
                              weight_decay=0)
@@ -106,6 +106,40 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate,
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 #===============================================================================
+
+def validation_routine(vdataloader, model, set_name = ""):
+    model.eval()
+    accuracy_estimator.reset()
+
+    val_loss = 0
+    val_auc = 0
+    pred_labels = []; true_labels = []
+    for jth, (vsrc1, vsrc2, vsrc3, vsrc_sz, vtgt) in enumerate(tqdm(vdataloader)):
+
+        vsrc1 = vsrc1.to(device); vsrc2 = vsrc2.to(device)
+        vsrc3 = vsrc3.to(device)
+        vtgt = vtgt.to(device)
+
+        with torch.no_grad():
+            voutput = model(x1 = vsrc1, x2= vsrc2,
+                            x3=vsrc3, x_sz = vsrc_sz )
+            val_loss += loss_estimator(voutput, vtgt)
+            accuracy_estimator.register_result(vtgt, voutput)
+        # break
+
+    val_loss = val_loss / len(valid_dataloader)
+    val_auc = accuracy_estimator.area_under_curve()
+    val_acc = accuracy_estimator.accuracy_score()
+
+    print('epoch[{}/{}], [-----TEST------] loss:{:.4f} AUC:{:.4f} Accur:{:.4f}'
+            .format(epoch+1, num_epochs, val_loss.data, val_auc, val_acc ))
+
+    rutl.LOG2CSV([val_loss.item(), val_auc, val_acc],
+                LOG_PATH+"ValMeasures-{}.csv".format(set_name))
+
+    return val_loss, val_auc, val_acc
+
+
 
 if __name__ =="__main__":
 
@@ -144,32 +178,8 @@ if __name__ =="__main__":
         rutl.LOG2CSV(running_loss, LOG_PATH+"trainLoss.csv")
 
         #--------- Validate ---------------------
-        model.eval()
-        val_loss = 0
-        val_auc = 0
-        pred_labels = []; true_labels = []
-        for jth, (vsrc1, vsrc2, vsrc3, vsrc_sz, vtgt) in enumerate(tqdm(valid_dataloader)):
 
-            vsrc1 = vsrc1.to(device); vsrc2 = vsrc2.to(device)
-            vsrc3 = vsrc3.to(device)
-            vtgt = vtgt.to(device)
-
-            with torch.no_grad():
-                voutput = model(x1 = vsrc1, x2= vsrc2,
-                                x3=vsrc3, x_sz = vsrc_sz )
-                val_loss += loss_estimator(voutput, vtgt)
-                accuracy_estimator.register_result(vtgt, voutput)
-            # break
-
-        val_loss = val_loss / len(valid_dataloader)
-        val_auc = accuracy_estimator.area_under_curve()
-        val_acc = accuracy_estimator.accuracy_score()
-
-        print('epoch[{}/{}], [-----TEST------] loss:{:.4f} AUC:{:.4f} Accur:{:.4f}'
-              .format(epoch+1, num_epochs, val_loss.data, val_auc, val_acc ))
-
-        rutl.LOG2CSV([val_loss.item(), val_auc, val_acc],
-                    LOG_PATH+"valLoss.csv")
+        _, val_auc, _ = validation_routine(model, valid_dataloader, 'ValidSplit')
 
         #-------- save Checkpoint -------------------
         if val_auc > best_accuracy:
@@ -177,7 +187,7 @@ if __name__ =="__main__":
             print("***saving best optimal state [Loss:{} Accur:{}] ***".format(val_loss.data,val_auc) )
             best_loss = val_loss
             best_accuracy = val_auc
-            torch.save(model.state_dict(), WGT_PREFIX+"_model.pth")
+            torch.save(model.state_dict(), WGT_PREFIX+"_model-{}.pth".format(epoch+1))
             rutl.LOG2CSV([epoch+1, val_loss.item(), val_auc],
                     LOG_PATH+"bestCheckpoint.csv")
 
