@@ -29,11 +29,14 @@ batch_size = 4
 acc_grad = 1
 learning_rate = 0.01
 
+skill_file='data/assist_splits/skill_train.txt'
+student_file='data/assist_splits/student_train.txt'
+question_file='data/assist_splits/question_train.txt'
 
 train_dataset = AssistDataset(  json_path='data/assist_splits/assist_train.json',
-                                skill_file='data/assist_splits/skill_train.txt',
-                                student_file='data/assist_splits/student_train.txt',
-                                question_file='data/assist_splits/questions.txt'
+                                skill_file=skill_file,
+                                student_file=student_file,
+                                question_file=question_file
                                 )
 
 train_sampler, valid_sampler = rutl.random_train_valid_samplers(train_dataset)
@@ -45,6 +48,21 @@ train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
 valid_dataloader = DataLoader(train_dataset, batch_size=batch_size,
                                 sampler=valid_sampler,
                                 num_workers=0)
+
+
+## The IDs not present in train will be set as ZERO all below cases; a harsh testing
+skill_iso_dataset = AssistDataset(  json_path='data/assist_splits/skill_isolate_test.json',
+                    skill_file=skill_file, student_file=student_file, question_file=question_file  )
+skill_iso_dataloader = DataLoader(skill_iso_dataset, batch_size=batch_size, num_workers=0)
+
+student_iso_dataset = AssistDataset(  json_path='data/assist_splits/student_isolate_test.json',
+                    skill_file=skill_file, student_file=student_file, question_file=question_file  )
+student_iso_dataloader = DataLoader(student_iso_dataset, batch_size=batch_size, num_workers=0)
+
+st_sk_iso_dataset = AssistDataset(  json_path='data/assist_splits/stud+skill_isolate_test.json',
+                    skill_file=skill_file, student_file=student_file, question_file=question_file  )
+st_sk_iso_dataloader = DataLoader(st_sk_iso_dataset, batch_size=batch_size, num_workers=0)
+
 
 # for i in range(20):
 #     print(train_dataset.__getitem__(i))
@@ -60,7 +78,7 @@ enc_layers = 1
 m_dropout = 0
 
 model = DKT_Embednet(stud_count = len(train_dataset.idxr.stud2idx),
-                    stud_embed_dim = 8,
+                    stud_embed_dim = 16,
                     skill_count = len(train_dataset.idxr.skill2idx),
                     skill_embed_dim = 32,
                     ques_count = len(train_dataset.idxr.ques2idx),
@@ -193,7 +211,11 @@ if __name__ =="__main__":
 
         #--------- Validate ---------------------
 
-        _, val_auc, _ = validation_routine(model, valid_dataloader, 'ValidSplit')
+        val_loss, val_auc, val_acc = validation_routine(valid_dataloader, model, 'ValidSplit')
+        validation_routine(skill_iso_dataloader, model, 'SkillIsolate')
+        validation_routine(student_iso_dataloader, model, 'StudentIsolate')
+        validation_routine(st_sk_iso_dataloader, model, 'SkStIsolate')
+
 
         #-------- save Checkpoint -------------------
         if val_auc > best_accuracy:
