@@ -33,6 +33,7 @@ learning_rate = 0.01
 train_dataset = AssistDataset(  json_path='data/assist_splits/assist_train.json',
                                 skill_file='data/assist_splits/skill_train.txt',
                                 student_file='data/assist_splits/student_train.txt',
+                                question_file='data/assist_splits/questions.txt'
                                 )
 
 train_sampler, valid_sampler = rutl.random_train_valid_samplers(train_dataset)
@@ -62,13 +63,17 @@ m_dropout = 0
 #                     stud_embed_dim = 16,
 #                     skill_count = len(train_dataset.idxr.skill2idx),
 #                     skill_embed_dim = 8,
+#                     ques_count = len(train_dataset.idxr.ques2idx),
+#                     ques_embed_dim = 16,
 #                     hidden_dim = 64, layers = 1,
 #                     dropout = 0, device = device)
 
 model = DKT_Onehotnet(stud_count = len(train_dataset.idxr.stud2idx),
                     skill_count = len(train_dataset.idxr.skill2idx),
+                    ques_count = len(train_dataset.idxr.ques2idx),
                     hidden_dim = 64, layers = 1,
                     dropout = 0, device = device)
+
 model = model.to(device)
 
 # model = load_pretrained(model,pretrain_wgt_path) #if path empty returns unmodified
@@ -112,14 +117,15 @@ if __name__ =="__main__":
         model.train()
         acc_loss = 0
         running_loss = []
-        for ith, (src1, src2, src_sz, tgt) in enumerate(train_dataloader):
+        for ith, (src1, src2, src3, src_sz, tgt) in enumerate(train_dataloader):
 
-            src1 = src1.to(device)
-            src2 = src2.to(device)
+            src1 = src1.to(device); src2 = src2.to(device)
+            src3 = src3.to(device)
             tgt = tgt.to(device)
 
             #--- forward ------
-            output = model(x1 = src1, x2=src2, x_sz =src_sz)
+            output = model( x1 = src1, x2=src2,
+                            x3=src3, x_sz =src_sz)
             loss = loss_estimator(output, tgt) / acc_grad
             acc_loss += loss
 
@@ -142,14 +148,15 @@ if __name__ =="__main__":
         val_loss = 0
         val_auc = 0
         pred_labels = []; true_labels = []
-        for jth, (vsrc1, vsrc2, vsrc_sz, vtgt) in enumerate(tqdm(valid_dataloader)):
+        for jth, (vsrc1, vsrc2, vsrc3, vsrc_sz, vtgt) in enumerate(tqdm(valid_dataloader)):
 
-            vsrc1 = vsrc1.to(device)
-            vsrc2 = vsrc2.to(device)
+            vsrc1 = vsrc1.to(device); vsrc2 = vsrc2.to(device)
+            vsrc3 = vsrc3.to(device)
             vtgt = vtgt.to(device)
 
             with torch.no_grad():
-                voutput = model(x1 = vsrc1, x2= vsrc2, x_sz = vsrc_sz )
+                voutput = model(x1 = vsrc1, x2= vsrc2,
+                                x3=vsrc3, x_sz = vsrc_sz )
                 val_loss += loss_estimator(voutput, vtgt)
                 accuracy_estimator.register_result(vtgt, voutput)
             # break
