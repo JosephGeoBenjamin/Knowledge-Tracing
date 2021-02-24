@@ -5,43 +5,60 @@ from torch.utils.data import Dataset
 import numpy as np
 
 class Conversions():
-    def __init__(self, skill_file, student_file, question_file):
+    def __init__(self, skill_f, student_f, question_f,
+                    type_ = 'file'):
 
         self.skill2idx = {}
         self.stud2idx = {}
         self.ques2idx = {}
 
-        self._create_index(skill_file, student_file, question_file)
+        self.sk_list = []
+        self.st_list = []
+        self.qs_list = []
 
-    def _create_index(self, skill_file, student_file, question_file):
+        if type_ == 'file':
+            self.update_list_from_file(skill_f, student_f, question_f)
+        elif type_ == 'list':
+            self.update_list(skill_f, student_f, question_f)
+        else:
+            raise Exception("Type unknown,  pass either list or File")
 
-        with open(skill_file) as f:
-            sk_list = f.readlines()
-        self.sk_list = [s.rstrip() for s in sk_list]
+        self._create_index()
 
+    def _create_index(self):
         self.skill2idx['avg'] = 0
         for i, l in enumerate(self.sk_list):
             self.skill2idx[l] = i+1
         #---
-
-        with open(student_file) as f:
-            st_list = f.readlines()
-        self.st_list = [s.rstrip() for s in st_list]
-
         self.stud2idx['avg'] = 0
         for i, l in enumerate(self.st_list):
             self.stud2idx[l] = i+1
         #---
-
-        with open(question_file) as f:
-            qs_list = f.readlines()
-        self.qs_list = [s.rstrip() for s in qs_list]
-
         self.ques2idx['avg'] = 0
         for i, l in enumerate(self.qs_list):
             self.ques2idx[l] = i+1
 
+    def update_list_from_file(self, skill_file, student_file, question_file):
 
+        with open(question_file) as f:
+            qs_list = f.readlines()
+        self.qs_list = [s.rstrip() for s in qs_list]
+        ##---
+        with open(student_file) as f:
+            st_list = f.readlines()
+        self.st_list = [s.rstrip() for s in st_list]
+        ##---
+        with open(skill_file) as f:
+            sk_list = f.readlines()
+        self.sk_list = [s.rstrip() for s in sk_list]
+
+    def update_list(self, skill_list, student_list, question_list):
+        if isinstance(skill_list,list) and isinstance(student_list,list) and isinstance(question_list,list):
+            self.sk_list = skill_list
+            self.st_list = student_list
+            self.qs_list = question_list
+        else:
+            raise Exception("Wrong type data passed, expected list")
 class AssistDataset(Dataset):
     """ INPUT JSON FORMAT
     [   stud_x001: {
@@ -65,9 +82,9 @@ class AssistDataset(Dataset):
         self.bpath = os.path.dirname(json_path)
         self.bname = os.path.basename(json_path)
         self.json_data = json.load(open(json_path))
-        self.idxr = Conversions(skill_file=skill_file,
-                                student_file=student_file,
-                                question_file=question_file, )
+        self.idxr = Conversions(skill_f=skill_file,
+                                student_f=student_file,
+                                question_f=question_file, )
 
         self.records = self._create_records()
         print(len(self.records)//4)
