@@ -217,7 +217,7 @@ if __name__ =="__main__":
                     .format(epoch+1, num_epochs, (ith+1)//acc_grad, acc_loss.data))
                 running_loss.append(acc_loss.item())
                 acc_loss=0
-                break
+                # break
 
         rutl.LOG2CSV(running_loss, LOG_PATH+"trainLoss.csv")
 
