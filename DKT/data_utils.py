@@ -3,6 +3,7 @@ import os
 import csv
 from torch.utils.data import Dataset
 import numpy as np
+import pandas as pd
 
 class Conversions():
     def __init__(self, skill_f, student_f, question_f,
@@ -17,9 +18,9 @@ class Conversions():
         self.qs_list = []
 
         if type_ == 'file':
-            self.update_list_from_file(skill_f, student_f, question_f)
+            self._update_list_from_file(skill_f, student_f, question_f)
         elif type_ == 'list':
-            self.update_list(skill_f, student_f, question_f)
+            self._update_list(skill_f, student_f, question_f)
         else:
             raise Exception("Type unknown,  pass either list or File")
 
@@ -38,7 +39,7 @@ class Conversions():
         for i, l in enumerate(self.qs_list):
             self.ques2idx[l] = i+1
 
-    def update_list_from_file(self, skill_file, student_file, question_file):
+    def _update_list_from_file(self, skill_file, student_file, question_file):
 
         with open(question_file) as f:
             qs_list = f.readlines()
@@ -52,7 +53,7 @@ class Conversions():
             sk_list = f.readlines()
         self.sk_list = [s.rstrip() for s in sk_list]
 
-    def update_list(self, skill_list, student_list, question_list):
+    def _update_list(self, skill_list, student_list, question_list):
         if isinstance(skill_list,list) and isinstance(student_list,list) and isinstance(question_list,list):
             self.sk_list = skill_list
             self.st_list = student_list
@@ -79,6 +80,7 @@ class AssistDataset(Dataset):
     """
 
     def __init__(self, json_path, skill_file, student_file, question_file):
+        self.pad_size = 1000
         self.bpath = os.path.dirname(json_path)
         self.bname = os.path.basename(json_path)
         self.json_data = json.load(open(json_path))
@@ -138,7 +140,69 @@ class AssistDataset(Dataset):
             if a:
                 final.extend([a,b,c,d])
 
-        arr = np.ones((len(final),1000), dtype=np.int) *-1
+        arr = np.ones((len(final),self.pad_size), dtype=np.int) *-1
+
+        for i, lst in enumerate(final):
+           arr[i][:len(lst)] = lst
+        path =  os.path.join(self.bpath, "temp_record_{}_npy.txt".format(self.bname))
+        np.savetxt(path, arr, fmt='%i' )
+
+        return arr
+
+
+class GuviSplitDataset(Dataset):
+    """
+    """
+
+    def __init__(self, csv_file):
+        self.pad_size = 1000
+        self.bpath = os.path.dirname(csv_file)
+        self.bname = os.path.basename(csv_file)
+        self.df = pd.read_csv(csv_file)
+        self.idxr = Conversions(skill_f= self._get_id_list('skill_id'),
+                                student_f=self._get_id_list('student_id'),
+                                question_f=self._get_id_list('ques_id'),
+                                type_='list')
+
+        self.records = self._create_records()
+        print(len(self.records)//4)
+        if ( self.records.shape[0] % 4) != 0:
+            print("\n !!!! Something went wrong with records, the lines are ODD  expected to be EVEN !!!!\n")
+
+    def __getitem__(self, idx):  ## <---
+        inp1 = self.records[idx*4]
+        inp2 = self.records[(idx*4) +1]
+        inp3 = self.records[(idx*4) +2]
+        inp_sz = sum(inp1 >= 0)
+        out = self.records[(idx*4) +3]
+
+        return inp1, inp2, inp3, inp_sz, out
+
+    def __len__(self):  ## <---
+        return len(self.records) // 4
+
+    def _get_id_list(self, column):
+        return sorted(list(self.df[column].unique()))
+
+    def _create_records(self):
+        '''Return CSV reader Object
+        '''
+        final = []
+        prev_stud = self.df['student_id'][0]
+        a_ = []; b_ = []; c_ = []; d_ = []
+        for index, row in self.df.iterrows():
+            if prev_stud == row['student_id']:
+                a_.append(row['student_id']); b_.append(row['skill_id'])
+                c_.append(row['ques_id']); d_.append(row['correct'])
+            else:
+                final.append(a_); final.append(b_)
+                final.append(c_); final.append(d_)
+                a_ = [row['student_id']]; b_ = [row['skill_id']]
+                c_ = [row['ques_id']]; d_ = [row['correct']]
+            prev_stud = row['student_id']
+        final.append(a_); final.append(b_); final.append(c_); final.append(d_)
+
+        arr = np.ones((len(final), self.pad_size), dtype=np.int) *-1
 
         for i, lst in enumerate(final):
            arr[i][:len(lst)] = lst

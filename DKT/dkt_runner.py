@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 from tqdm import tqdm
-from DKT.data_utils import AssistDataset
+from DKT.data_utils import AssistDataset, GuviSplitDataset
 from DKT.dkt_arch import DKT_Embednet, DKT_Onehotnet
 from DKT.metric_utils import AccuracyTeller
 import utilities.running_utils as rutl
@@ -29,9 +29,11 @@ batch_size = 4
 acc_grad = 1
 learning_rate = 0.01
 
-skill_file='data/assist_splits/skill_train.txt'
-student_file='data/assist_splits/student_train.txt'
-question_file='data/assist_splits/question_train.txt'
+"""
+### ASSISTMENT DATASETS
+skill_file='data/assist_splits/skill.txt'
+student_file='data/assist_splits/student.txt'
+question_file='data/assist_splits/question.txt'
 
 train_dataset = AssistDataset(  json_path='data/assist_splits/assist_train.json',
                                 skill_file=skill_file,
@@ -63,8 +65,18 @@ st_sk_iso_dataset = AssistDataset(  json_path='data/assist_splits/stud+skill_iso
                     skill_file=skill_file, student_file=student_file, question_file=question_file  )
 st_sk_iso_dataloader = DataLoader(st_sk_iso_dataset, batch_size=batch_size, num_workers=0)
 
+"""
+train_dataset = GuviSplitDataset(csv_file = 'data/guvi_splits/train_split.csv')
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
+                                shuffle= True,
+                                num_workers=0)
+valid_dataset = GuviSplitDataset(csv_file = 'data/guvi_splits/valid_split.csv')
+valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size,
+                                shuffle= True,
+                                num_workers=0)
 
-# for i in range(20):
+
+# for i in range(1):
 #     print(train_dataset.__getitem__(i))
 
 # for i, batch in enumerate(train_dataloader):
@@ -205,16 +217,20 @@ if __name__ =="__main__":
                     .format(epoch+1, num_epochs, (ith+1)//acc_grad, acc_loss.data))
                 running_loss.append(acc_loss.item())
                 acc_loss=0
-                # break
+                break
 
         rutl.LOG2CSV(running_loss, LOG_PATH+"trainLoss.csv")
 
         #--------- Validate ---------------------
-
+        """
+        ## ASSISTMENT
         val_loss, val_auc, val_acc = validation_routine(valid_dataloader, model, 'ValidSplit')
         validation_routine(skill_iso_dataloader, model, 'SkillIsolate')
         validation_routine(student_iso_dataloader, model, 'StudentIsolate')
         validation_routine(st_sk_iso_dataloader, model, 'SkStIsolate')
+        """
+
+        val_loss, val_auc, val_acc = validation_routine(valid_dataloader, model, 'ValidSplit')
 
 
         #-------- save Checkpoint -------------------
