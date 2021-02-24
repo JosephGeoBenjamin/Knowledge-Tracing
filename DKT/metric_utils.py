@@ -14,7 +14,7 @@ class AccuracyTeller():
         pred_ = pred[true>-1]
 
         self.true_labels.extend(true_)
-        self.pred_labels.extend(pred)
+        self.pred_labels.extend(pred_)
 
     def reset(self):
         self.true_labels = []
@@ -26,6 +26,6 @@ class AccuracyTeller():
         return auc
 
     def accuracy_score(self):
-        pred_ = ( self.pred[true>-1] > 0.65 ).astype(np.int)
-        acc = metrics.accuracy_score(self.true_labels, pred_,)
+        pred_ = ( np.asarray(self.pred_labels) > 0.65 ).astype(np.int)
+        acc = metrics.accuracy_score(self.true_labels, pred_)
         return acc
