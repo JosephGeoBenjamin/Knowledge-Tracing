@@ -25,13 +25,13 @@ def print_model_arch(model):
         print('param.requires_grad: ', param.requires_grad)
         print('=====')
 
-def random_train_valid_samplers(data_set, split_ratio = 0.2):
+def random_train_valid_samplers(data_set, split_ratio = 0.2, seed = 619):
 
     num_train = len(data_set)
     indices = list(range(num_train))
     split = int(np.floor(split_ratio * num_train))
 
-    np.random.seed(619)
+    np.random.seed(seed)
     np.random.shuffle(indices)
 
     train_idx, valid_idx = indices[split:], indices[:split]

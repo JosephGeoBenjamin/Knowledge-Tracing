@@ -113,11 +113,11 @@ def set_avg_embedding(model):
     ''' Average will be set at 0th index; consistent with dataset
     '''
     e = model.stud_embed
-    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+    e.weight.data[1].copy_(torch.mean(e.weight.data[1:], dim=0))
     e = model.skill_embed
-    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+    e.weight.data[1].copy_(torch.mean(e.weight.data[1:], dim=0))
     e = model.ques_embed
-    e.weight.data[0].copy_(torch.mean(e.weight.data[1:], dim=0))
+    e.weight.data[1].copy_(torch.mean(e.weight.data[1:], dim=0))
 
     return model
 

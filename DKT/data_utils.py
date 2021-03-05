@@ -8,6 +8,10 @@ import pandas as pd
 class Conversions():
     def __init__(self, skill_f, student_f, question_f,
                     type_ = 'file'):
+        """
+        Pad Dummy Idx: 0
+        New Case Idx: 1
+        """
 
         self.skill2idx = {}
         self.stud2idx = {}
@@ -27,17 +31,20 @@ class Conversions():
         self._create_index()
 
     def _create_index(self):
-        self.skill2idx['avg'] = 0
+        self.skill2idx['msk'] = 0
+        self.skill2idx['avg'] = 1
         for i, l in enumerate(self.sk_list):
-            self.skill2idx[l] = i+1
+            self.skill2idx[l] = i+2
         #---
-        self.stud2idx['avg'] = 0
+        self.stud2idx['msk'] = 0
+        self.stud2idx['avg'] = 1
         for i, l in enumerate(self.st_list):
-            self.stud2idx[l] = i+1
+            self.stud2idx[l] = i+2
         #---
-        self.ques2idx['avg'] = 0
+        self.ques2idx['msk'] = 0
+        self.ques2idx['avg'] = 1
         for i, l in enumerate(self.qs_list):
-            self.ques2idx[l] = i+1
+            self.ques2idx[l] = i+2
 
     def _update_list_from_file(self, skill_file, student_file, question_file):
 
@@ -60,6 +67,8 @@ class Conversions():
             self.qs_list = question_list
         else:
             raise Exception("Wrong type data passed, expected list")
+
+
 class AssistDataset(Dataset):
     """ INPUT JSON FORMAT
     [   stud_x001: {
@@ -112,18 +121,18 @@ class AssistDataset(Dataset):
         for it in ita_list:
             if it['first_response_ans'] == "1":
                 out_binary.append(1)
-                ques_l.append(self.idxr.ques2idx.get(it['qid'],0))
+                ques_l.append(self.idxr.ques2idx.get(it['qid'],1))
                 continue
 
             att = int(it['attempt_count'])
             if att:
                 att_l = [0] * att
                 att_l[-1] = 1
-                ques_l.extend( [self.idxr.ques2idx.get(it['qid'],0) ]*att )
+                ques_l.extend( [self.idxr.ques2idx.get(it['qid'],1) ]*att )
                 out_binary.extend(att_l)
 
-        stud_l = [self.idxr.stud2idx.get(stud, 0)] * len(out_binary)
-        skill_l = [self.idxr.skill2idx.get(sess['skill'], 0)] * len(out_binary)
+        stud_l = [self.idxr.stud2idx.get(stud, 1)] * len(out_binary)
+        skill_l = [self.idxr.skill2idx.get(sess['skill'], 1)] * len(out_binary)
         return stud_l, skill_l, ques_l, out_binary
 
 
